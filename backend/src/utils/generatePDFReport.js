@@ -1,6 +1,4 @@
 import PDFDocument from 'pdfkit';
-import fs from 'fs';
-import path from 'path';
 
 export const generatePDFReport = async (url, scanResults) => {
   // Validate inputs
@@ -20,19 +18,9 @@ export const generatePDFReport = async (url, scanResults) => {
     dnsRebinding: scanResults.dnsRebinding || { records: [] }
   };
 
-  const outputPath = path.join('reports', `CyberSecure-web_Report_${Date.now()}.pdf`);
-
-  // Ensure reports directory exists
-  try {
-    fs.mkdirSync('reports', { recursive: true });
-  } catch (error) {
-    console.error('Error creating reports directory:', error);
-    throw new Error('Failed to create reports directory');
-  }
-
   const doc = new PDFDocument({ margin: 40 });
-  const writeStream = fs.createWriteStream(outputPath);
-  doc.pipe(writeStream);
+  const buffers = [];
+  doc.on('data', buffers.push.bind(buffers));
 
   // Page Border
   doc.save()
@@ -227,12 +215,18 @@ export const generatePDFReport = async (url, scanResults) => {
   doc.end();
 
   return new Promise((resolve, reject) => {
-    writeStream.on('finish', () => {
-      console.log(`PDF report generated successfully: ${outputPath}`);
-      resolve(outputPath);
+    doc.on('end', () => {
+      try {
+        const pdfData = Buffer.concat(buffers);
+        console.log('PDF report generated successfully in memory');
+        resolve(pdfData);
+      } catch (error) {
+        console.error('Error generating PDF buffer:', error);
+        reject(error);
+      }
     });
-    writeStream.on('error', (error) => {
-      console.error('Error writing PDF file:', error);
+    doc.on('error', (error) => {
+      console.error('Error in PDF generation:', error);
       reject(error);
     });
   });

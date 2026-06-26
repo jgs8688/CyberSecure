@@ -12,6 +12,18 @@ import mongoose from "mongoose";
 import authorized from "./router/router.authorized.js";
 import scanRouter from "./router/router.scan.js";
 import reportRouter from "./router/router.report.js";
+import dns from "dns";
+
+import helmet from "helmet";
+import hpp from "hpp";
+import mongoSanitize from "express-mongo-sanitize";
+import compression from "compression";
+import morgan from "morgan";
+import logger from "./utils/logger.js";
+import errorHandler from "./middleware/errorHandler.js";
+
+// Fix for MongoDB SRV DNS resolution issue on Node 20 / Windows
+dns.setDefaultResultOrder("ipv4first");
 
 dotenv.config();
 
@@ -19,12 +31,31 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://4lw5g375-5173.inc1.devtunnels.ms",
-];
+// Process Event Listeners for Robustness
+process.on('uncaughtException', (err) => {
+  logger.error(`Uncaught Exception: ${err.message}\n${err.stack}`);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  logger.error(`Unhandled Rejection: ${err.message}\n${err.stack}`);
+  process.exit(1);
+});
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : [
+      "http://localhost:5173",
+      "https://4lw5g375-5173.inc1.devtunnels.ms",
+    ];
 
 // Middleware
+app.use(helmet()); // Security headers
+app.use(hpp()); // Prevent HTTP Parameter Pollution
+app.use(mongoSanitize()); // Prevent NoSQL Injection
+app.use(compression()); // Gzip compression
+app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } })); // Request logging
+
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -59,19 +90,19 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Error handling middleware
-app.use((err, req, res, next) => {
-  console.error("Error:", err.stack);
-  res.status(500).send("Something broke!");
-});
+app.use(errorHandler);
 
 // db connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log("MongoDB connected");
-    console.log("Database:", mongoose.connection.db.databaseName);
+    logger.info("MongoDB connected");
+    logger.info(`Database: ${mongoose.connection.db.databaseName}`);
   })
-  .catch((err) => console.error("MongoDB connection error:", err));
+  .catch((err) => {
+    logger.error(`MongoDB connection error: ${err}`);
+    process.exit(1); // Exit process with failure
+  });
 
 // Routes
 // userRouter is the route for user authentication
@@ -98,5 +129,5 @@ app.use((req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port: ${PORT}`);
+  logger.info(`Server is running on port: ${PORT}`);
 });

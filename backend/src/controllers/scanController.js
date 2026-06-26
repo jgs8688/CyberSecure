@@ -43,14 +43,14 @@ export const scanWebsite = async (req, res) => {
       dnsRebinding: dns || [],
     };
 
-    const pdfPath = await generatePDFReport(url, reportData);
+    const pdfBuffer = await generatePDFReport(url, reportData);
 
-    if (!pdfPath) {
+    if (!pdfBuffer) {
       return res.status(500).json({ error: "Failed to generate PDF report" });
     }
 
     // Upload PDF to ImageKit
-    const cloudFilePath = await imagekitData(pdfPath);
+    const cloudFilePath = await imagekitData(pdfBuffer);
     if (!cloudFilePath) {
       return res.status(500).json({ error: "Failed to upload PDF to cloud" });
     }

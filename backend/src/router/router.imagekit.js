@@ -14,10 +14,8 @@ const imagekit = new ImageKit({
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
 });
 
-const imagekitData = async (pdfRelativePath) => {
+const imagekitData = async (fileBuffer) => {
   try {
-    const filePath = path.join(__dirname, "..", "..", pdfRelativePath);
-    const fileBuffer = fs.readFileSync(filePath); // Read the PDF as binary
     const timestamp = Date.now();
 
     const result = await imagekit.upload({
@@ -27,7 +25,7 @@ const imagekitData = async (pdfRelativePath) => {
       useUniqueFileName: false, // use your own filename format
     });
 
-    console.log("Uploading file:", filePath);
+    console.log("Uploading PDF buffer to ImageKit...");
     console.log("PDF uploaded to ImageKit!");
     console.log("PDF URL:", result.url);
 
